@@ -318,6 +318,28 @@ struct MediumView: View {
             Divider().opacity(0.3)
 
             ResetTimesView(util: util, compact: true)
+
+            Divider().opacity(0.3)
+
+            // Compact stats row
+            HStack(spacing: 0) {
+                statLine(value: fmt(session.outputTokens), label: "output")
+                Spacer()
+                statLine(value: fmt(session.cacheRead), label: "cache")
+                Spacer()
+                statLine(value: "\(session.apiCalls)", label: "calls")
+            }
+        }
+    }
+
+    func statLine(value: String, label: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .fontWeight(.semibold)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 }
@@ -370,6 +392,41 @@ struct LargeView: View {
             Divider().opacity(0.3)
 
             ResetTimesView(util: util)
+
+            Divider().opacity(0.3)
+
+            // Stats row — no session count label
+            HStack(spacing: 0) {
+                VStack(spacing: 2) {
+                    Text(fmt(session.outputTokens))
+                        .font(.system(.headline, design: .monospaced))
+                        .fontWeight(.bold)
+                    Text("output")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: 2) {
+                    Text(fmt(session.cacheRead))
+                        .font(.system(.headline, design: .monospaced))
+                        .fontWeight(.semibold)
+                    Text("cache")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: 2) {
+                    Text("\(session.apiCalls)")
+                        .font(.system(.headline, design: .monospaced))
+                        .fontWeight(.semibold)
+                    Text("calls")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+            }
 
             Spacer()
 

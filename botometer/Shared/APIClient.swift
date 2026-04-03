@@ -89,10 +89,15 @@ func fetchUtilization(token: String) async throws -> Utilization {
         throw AuthError.networkError("HTTP \(http.statusCode)")
     }
 
+    // Log raw JSON so field changes from Anthropic are visible in Console.app
+    print("[GlassUsage] Raw JSON: \(String(data: data, encoding: .utf8) ?? "unreadable")")
+
     guard let utilization = try? JSONDecoder().decode(Utilization.self, from: data) else {
-        print("[GlassUsage] Parse failed. Raw JSON: \(String(data: data, encoding: .utf8) ?? "unreadable")")
+        print("[GlassUsage] Parse failed.")
         throw AuthError.parseError
     }
+
+    print("[GlassUsage] Decoded — 5h: \(utilization.five_hour?.utilization.map { "\(Int($0))%" } ?? "nil"), 7d: \(utilization.seven_day?.utilization.map { "\(Int($0))%" } ?? "nil"), opus: \(utilization.seven_day_opus?.utilization.map { "\(Int($0))%" } ?? "nil")")
 
     return utilization
 }

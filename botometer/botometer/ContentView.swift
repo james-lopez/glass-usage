@@ -308,6 +308,10 @@ struct UsageView: View {
 
             ResetTimesView(util: utilization)
 
+            Divider().opacity(0.3)
+
+            SessionStatsRow(session: session)
+
             // Footer
             Text("Updated \(lastUpdated, style: .relative) ago")
                 .font(.caption2)
@@ -382,11 +386,6 @@ struct SessionStatsRow: View {
                 .frame(maxWidth: .infinity)
             }
 
-            Label("LOCAL SESSIONS · \(session.sessionCount)", systemImage: "internaldrive")
-                .font(.caption2)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 }
