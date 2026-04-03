@@ -72,44 +72,69 @@ struct GaugeDial: View {
 
 // MARK: - Reset Times
 
-/// Shows a compact countdown row for each active limit's reset time.
-struct ResetTimesView: View {
+
+// MARK: - Widget Bottom Row
+
+struct WidgetBottomRow: View {
     let util: Utilization
+    let session: SessionStats
+    let date: Date
     var compact: Bool = false
 
-    var body: some View {
-        let rows = resetRows
-        if rows.isEmpty {
-            Text("Reset times unavailable")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            VStack(spacing: compact ? 4 : 6) {
-                ForEach(rows, id: \.label) { row in
-                    HStack {
-                        Text(row.label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(row.date, style: .timer)
-                            .font(.system(.caption2, design: .monospaced))
-                            .fontWeight(.semibold)
-                            .foregroundStyle(row.color)
-                    }
-                }
-            }
-        }
+    private var nextReset: Date? {
+        [util.five_hour?.resetsAtDate, util.seven_day?.resetsAtDate, util.seven_day_opus?.resetsAtDate]
+            .compactMap { $0 }
+            .filter { $0 > Date() }
+            .min()
     }
 
-    private struct ResetRow { let label: String; let date: Date; let color: Color }
+    private func ageString(_ date: Date) -> String {
+        let elapsed = Date().timeIntervalSince(date)
+        guard elapsed >= 60 else { return "< 1 min" }
+        return "\(Int(elapsed / 60)) min"
+    }
 
-    private var resetRows: [ResetRow] {
-        var rows: [ResetRow] = []
-        if let h = util.five_hour,  let d = h.resetsAtDate  { rows.append(.init(label: "5-Hour resets",  date: d, color: dialOrange)) }
-        if let w = util.seven_day,  let d = w.resetsAtDate  { rows.append(.init(label: "Weekly resets",  date: d, color: dialRed))    }
-        if let o = util.seven_day_opus, let d = o.resetsAtDate { rows.append(.init(label: "Opus resets", date: d, color: dialPurple)) }
-        return rows
+    private func ageColor(_ date: Date) -> Color {
+        let elapsed = Date().timeIntervalSince(date)
+        if elapsed > 3600 { return .red }
+        if elapsed > 1800 { return dialOrange }
+        return .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            col(label: "tokens") {
+                Text(fmt(session.totalTokens))
+                    .font(.system(size: compact ? 13 : 15, weight: .semibold, design: .monospaced))
+            }
+            col(label: "next reset") {
+                if let d = nextReset {
+                    Text(d, style: .timer)
+                        .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(dialOrange)
+                } else {
+                    Text("?")
+                        .font(.system(size: compact ? 13 : 15, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            col(label: "last updated") {
+                Text(ageString(date))
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(ageColor(date))
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func col<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .center, spacing: 4) {
+            content()
+            Text(label)
+                .font(.system(size: compact ? 12 : 14))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -193,8 +218,9 @@ struct GlassUsageWidgetView: View {
                 }
             }
         }
-        .padding(.top, 18)
-        .padding([.horizontal, .bottom], 12)
+        .padding(.top, family == .systemSmall ? 18 : 22)
+        .padding(.horizontal, family == .systemSmall ? 16 : 14)
+        .padding(.bottom, family == .systemSmall ? 16 : 12)
     }
 
     func widgetStatus(icon: String, color: Color, text: String) -> some View {
@@ -255,12 +281,11 @@ struct SmallView: View {
             if let h = util.five_hour, let pct = h.utilization {
                 compactBar(label: "5-Hour", pct: pct, color: dialOrange)
             }
+            if let o = util.seven_day_opus, let pct = o.utilization {
+                compactBar(label: "Opus", pct: pct, color: dialPurple)
+            }
 
             Spacer()
-
-            Text("\(session.apiCalls) calls · \(fmt(session.outputTokens)) out")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
     }
 
@@ -293,11 +318,11 @@ struct MediumView: View {
     let date: Date
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             WidgetBadgeHeader(isOnline: true)
             Divider().opacity(0.3)
 
-            // Dials — triangle layout
+            // Dials fill remaining space
             VStack(spacing: 2) {
                 if let h = util.five_hour {
                     GaugeDial(label: "5-Hour", pct: h.utilization, color: dialOrange, dialSize: 72)
@@ -315,31 +340,6 @@ struct MediumView: View {
                 }
             }
 
-            Divider().opacity(0.3)
-
-            ResetTimesView(util: util, compact: true)
-
-            Divider().opacity(0.3)
-
-            // Compact stats row
-            HStack(spacing: 0) {
-                statLine(value: fmt(session.outputTokens), label: "output")
-                Spacer()
-                statLine(value: fmt(session.cacheRead), label: "cache")
-                Spacer()
-                statLine(value: "\(session.apiCalls)", label: "calls")
-            }
-        }
-    }
-
-    func statLine(value: String, label: String) -> some View {
-        VStack(spacing: 1) {
-            Text(value)
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.semibold)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
     }
 }
@@ -391,48 +391,9 @@ struct LargeView: View {
 
             Divider().opacity(0.3)
 
-            ResetTimesView(util: util)
-
-            Divider().opacity(0.3)
-
-            // Stats row — no session count label
-            HStack(spacing: 0) {
-                VStack(spacing: 2) {
-                    Text(fmt(session.outputTokens))
-                        .font(.system(.headline, design: .monospaced))
-                        .fontWeight(.bold)
-                    Text("output")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-
-                VStack(spacing: 2) {
-                    Text(fmt(session.cacheRead))
-                        .font(.system(.headline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("cache")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-
-                VStack(spacing: 2) {
-                    Text("\(session.apiCalls)")
-                        .font(.system(.headline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("calls")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
-            Spacer()
-
-            Text("Updated \(date, style: .relative) ago")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
+            WidgetBottomRow(util: util, session: session, date: date)
+            Spacer(minLength: 0)
         }
     }
 }

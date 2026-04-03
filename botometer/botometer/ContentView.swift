@@ -10,6 +10,10 @@ class ViewModel: ObservableObject {
     private let cacheTTL: TimeInterval = 900 // 15 minutes
     private var lastFetchAttempt: Date? = nil
 
+    // Last successful API response — used as fallback on 429
+    private var cachedUtil: Utilization? = nil
+    private var cachedSession: SessionStats? = nil
+
     /// Called on popover open — skips fetch if data is fresh, otherwise refreshes silently.
     func refreshIfStale() {
         if let last = lastFetchAttempt, Date().timeIntervalSince(last) < cacheTTL {
@@ -59,13 +63,21 @@ class ViewModel: ObservableObject {
         // Fetch utilization from API
         do {
             let utilization = try await fetchUtilization(token: creds.accessToken)
+            cachedUtil = utilization
+            cachedSession = session
             state = .loaded(utilization: utilization, session: session)
             lastUpdated = Date()
             WidgetCenter.shared.reloadAllTimelines()
         } catch AuthError.tokenExpired {
             state = .tokenExpired
         } catch AuthError.networkError("429") {
-            state = .rateLimited
+            // Show cached data if available so the UI stays useful
+            if let u = cachedUtil, let s = cachedSession {
+                state = .loaded(utilization: u, session: s)
+                // lastUpdated intentionally not refreshed — stale timestamp shows age
+            } else {
+                state = .rateLimited
+            }
         } catch AuthError.networkError(let msg) {
             state = .apiError(msg)
         } catch {
@@ -306,16 +318,7 @@ struct UsageView: View {
 
             Divider().opacity(0.3)
 
-            ResetTimesView(util: utilization)
-
-            Divider().opacity(0.3)
-
-            SessionStatsRow(session: session)
-
-            // Footer
-            Text("Updated \(lastUpdated, style: .relative) ago")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            BottomStatsRow(util: utilization, session: session, updatedAt: lastUpdated)
         }
     }
 
@@ -345,50 +348,67 @@ struct ExtraUsageRow: View {
     }
 }
 
-// MARK: - Session Stats
+// MARK: - Bottom Stats Row
 
-struct SessionStatsRow: View {
+struct BottomStatsRow: View {
+    let util: Utilization
     let session: SessionStats
+    let updatedAt: Date
+
+    /// Earliest upcoming reset across all active limits.
+    private var nextReset: Date? {
+        [util.five_hour?.resetsAtDate, util.seven_day?.resetsAtDate, util.seven_day_opus?.resetsAtDate]
+            .compactMap { $0 }
+            .filter { $0 > Date() }
+            .min()
+    }
+
+    private func ageString(_ date: Date) -> String {
+        let elapsed = Date().timeIntervalSince(date)
+        guard elapsed >= 60 else { return "< 1 min" }
+        return "\(Int(elapsed / 60)) min"
+    }
+
+    private func ageColor(_ date: Date) -> Color {
+        let elapsed = Date().timeIntervalSince(date)
+        if elapsed > 3600 { return .red }
+        if elapsed > 1800 { return Color(red: 1, green: 0.58, blue: 0.12) } // dialOrange
+        return .secondary
+    }
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Top: output tokens — prominent
-            VStack(spacing: 2) {
-                Text(fmt(session.outputTokens))
-                    .font(.system(.title2, design: .monospaced))
-                    .fontWeight(.bold)
-                Text("output tokens")
-                    .font(.caption2)
+        HStack(spacing: 0) {
+            statCol(top: fmt(session.totalTokens), bottom: "tokens")
+            statCol(top: nil, bottom: "next reset", resetDate: nextReset)
+            statCol(top: ageString(updatedAt), bottom: "last updated", topColor: ageColor(updatedAt))
+        }
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private func statCol(top: String?, bottom: String, resetDate: Date? = nil, topColor: Color = .primary) -> some View {
+        VStack(alignment: .center, spacing: 4) {
+            if let t = top {
+                Text(t)
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(topColor)
+            } else if let d = resetDate {
+                Text(d, style: .timer)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(dialOrange)
+            } else {
+                Text("?")
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
-            .frame(maxWidth: .infinity)
-
-            // Bottom row: cache read + API calls
-            HStack(spacing: 0) {
-                VStack(spacing: 2) {
-                    Text(fmt(session.cacheRead))
-                        .font(.system(.subheadline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("cache read")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-
-                VStack(spacing: 2) {
-                    Text("\(session.apiCalls)")
-                        .font(.system(.subheadline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("API calls")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
+            Text(bottom)
+                .font(.system(size: 14))
+                .foregroundStyle(.tertiary)
         }
+        .frame(maxWidth: .infinity)
     }
 }
+
 
 #Preview("3 gauges") {
     GlassContainer {
