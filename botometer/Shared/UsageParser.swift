@@ -29,6 +29,8 @@ func parseLocalSessions() -> SessionStats {
     ) else { return stats }
 
     let decoder = JSONDecoder()
+    let iso8601 = ISO8601DateFormatter()
+    let todayComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
 
     for dir in projectDirs {
         guard let files = try? FileManager.default.contentsOfDirectory(
@@ -46,7 +48,16 @@ func parseLocalSessions() -> SessionStats {
                     let data = line.data(using: .utf8),
                     let entry = try? decoder.decode(SessionEntry.self, from: data),
                     entry.type == "assistant",
-                    let usage = entry.message?.usage
+                    let usage = entry.message?.usage,
+                    let timestamp = entry.timestamp,
+                    let entryDate = iso8601.date(from: timestamp)
+                else { continue }
+
+                let entryComponents = Calendar.current.dateComponents([.year, .month, .day], from: entryDate)
+                guard
+                    entryComponents.year == todayComponents.year,
+                    entryComponents.month == todayComponents.month,
+                    entryComponents.day == todayComponents.day
                 else { continue }
 
                 stats.inputTokens += usage.input_tokens ?? 0

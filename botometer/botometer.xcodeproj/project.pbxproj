@@ -350,6 +350,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = D2L7VP8LV8;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = botometerWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Bot-o-Meter";
@@ -458,6 +459,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = D2L7VP8LV8;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = botometerWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Bot-o-Meter";

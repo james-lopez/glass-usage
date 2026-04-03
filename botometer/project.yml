@@ -69,4 +69,5 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Bot-o-Meter
         SKIP_INSTALL: YES
+        ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: botometerWidget/botometerWidget.entitlements

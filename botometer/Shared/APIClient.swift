@@ -10,7 +10,7 @@ func realHomeDirectory() -> URL {
     if let pw = getpwuid(getuid()) {
         return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir))
     }
-    return realHomeDirectory()
+    return FileManager.default.homeDirectoryForCurrentUser
 }
 
 // MARK: - Keychain

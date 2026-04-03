@@ -5,15 +5,34 @@ import WidgetKit
 class ViewModel: ObservableObject {
     @Published var state: WidgetState = .loading
     @Published var lastUpdated: Date = Date()
+    @Published var isRefreshing: Bool = false
 
-    func refresh() {
-        Task {
-            state = .loading
-            await load()
+    private let cacheTTL: TimeInterval = 900 // 15 minutes
+    private var lastFetchAttempt: Date? = nil
+
+    /// Called on popover open — skips fetch if data is fresh, otherwise refreshes silently.
+    func refreshIfStale() {
+        if let last = lastFetchAttempt, Date().timeIntervalSince(last) < cacheTTL {
+            return // data is fresh, no-op
         }
+        Task { await load() }
+    }
+
+    /// Force a fresh fetch regardless of cache (used by manual refresh button).
+    func forceRefresh() {
+        Task { await load() }
     }
 
     private func load() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        lastFetchAttempt = Date()
+        defer { isRefreshing = false }
+
+        // Only show loading spinner on first load (no cached data yet)
+        if case .loading = state { /* already showing spinner */ }
+        else { /* keep showing stale data while we refresh silently */ }
+
         // Check ~/.claude exists
         let claudeDir = realHomeDirectory()
             .appendingPathComponent(".claude")
@@ -105,12 +124,12 @@ struct ContentView: View {
                     hint: nil
                 )
             case .loaded(let utilization, let session):
-                UsageView(utilization: utilization, session: session, lastUpdated: vm.lastUpdated)
+                UsageView(utilization: utilization, session: session, lastUpdated: vm.lastUpdated, isRefreshing: vm.isRefreshing, onRefresh: { vm.forceRefresh() })
             }
         }
         .frame(width: 300)
-        .onAppear { vm.refresh() }
-        .onReceive(timer) { _ in vm.refresh() }
+        .onAppear { vm.refreshIfStale() }
+        .onReceive(timer) { _ in vm.forceRefresh() }
     }
 }
 
@@ -145,6 +164,8 @@ struct GlassContainer<Content: View>: View {
 
 struct WidgetHeader: View {
     let isOnline: Bool
+    let isRefreshing: Bool
+    var onRefresh: (() -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -158,7 +179,17 @@ struct WidgetHeader: View {
                     .fill(isOnline ? Color.green : Color.orange)
                     .frame(width: 7, height: 7)
                 Spacer()
-                BitCharacter(color: dialOrange)
+                if isRefreshing {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Button { onRefresh?() } label: {
+                        BitCharacter(color: dialOrange)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh now")
+                }
             }
         }
     }
@@ -169,7 +200,7 @@ struct WidgetHeader: View {
 struct LoadingView: View {
     var body: some View {
         VStack(spacing: 12) {
-            WidgetHeader(isOnline: false)
+            WidgetHeader(isOnline: false, isRefreshing: false)
             Divider().opacity(0.3)
             HStack {
                 ProgressView().scaleEffect(0.7)
@@ -192,7 +223,7 @@ struct StatusView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            WidgetHeader(isOnline: false)
+            WidgetHeader(isOnline: false, isRefreshing: false)
             Divider().opacity(0.3)
             VStack(spacing: 8) {
                 Image(systemName: icon)
@@ -225,25 +256,43 @@ struct UsageView: View {
     let utilization: Utilization
     let session: SessionStats
     let lastUpdated: Date
+    var isRefreshing: Bool = false
+    var onRefresh: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            WidgetHeader(isOnline: true)
+            WidgetHeader(isOnline: true, isRefreshing: isRefreshing, onRefresh: onRefresh)
             Divider().opacity(0.3)
 
-            // Rate limit dials — triangle layout
-            VStack(spacing: 4) {
-                if let hourly = utilization.five_hour {
-                    GaugeDial(label: "5-Hour", pct: hourly.utilization, color: dialOrange, dialSize: 90, resetsAt: hourly.resetsAtDate)
+            // Rate limit dials — triangle if 3 gauges, side-by-side if ≤ 2
+            let hasHourly = utilization.five_hour != nil
+            let hasWeekly = utilization.seven_day != nil
+            let hasOpus   = utilization.seven_day_opus != nil
+            let gaugeCount = [hasHourly, hasWeekly, hasOpus].filter { $0 }.count
+
+            if gaugeCount == 3 {
+                VStack(spacing: 4) {
+                    GaugeDial(label: "5-Hour", pct: utilization.five_hour!.utilization, color: dialOrange, dialSize: 86, resetsAt: utilization.five_hour!.resetsAtDate)
                         .frame(maxWidth: .infinity)
+                    HStack(spacing: 0) {
+                        GaugeDial(label: "Weekly", pct: utilization.seven_day!.utilization, color: dialRed, dialSize: 74, resetsAt: utilization.seven_day!.resetsAtDate)
+                            .frame(maxWidth: .infinity)
+                        GaugeDial(label: "Opus (7d)", pct: utilization.seven_day_opus!.utilization, color: dialPurple, dialSize: 74, resetsAt: utilization.seven_day_opus!.resetsAtDate)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
+            } else {
                 HStack(spacing: 0) {
+                    if let hourly = utilization.five_hour {
+                        GaugeDial(label: "5-Hour", pct: hourly.utilization, color: dialOrange, dialSize: 80, resetsAt: hourly.resetsAtDate)
+                            .frame(maxWidth: .infinity)
+                    }
                     if let weekly = utilization.seven_day {
-                        GaugeDial(label: "Weekly", pct: weekly.utilization, color: dialRed, dialSize: 78, resetsAt: weekly.resetsAtDate)
+                        GaugeDial(label: "Weekly", pct: weekly.utilization, color: dialRed, dialSize: 80, resetsAt: weekly.resetsAtDate)
                             .frame(maxWidth: .infinity)
                     }
                     if let opus = utilization.seven_day_opus {
-                        GaugeDial(label: "Opus (7d)", pct: opus.utilization, color: dialPurple, dialSize: 78, resetsAt: opus.resetsAtDate)
+                        GaugeDial(label: "Opus (7d)", pct: opus.utilization, color: dialPurple, dialSize: 80, resetsAt: opus.resetsAtDate)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -257,11 +306,10 @@ struct UsageView: View {
 
             Divider().opacity(0.3)
 
-            // Session stats from local JSONL
-            SessionStatsRow(session: session)
+            ResetTimesView(util: utilization)
 
             // Footer
-            Text("Updated \(lastUpdated, style: .relative) ago · \(session.sessionCount) sessions")
+            Text("Updated \(lastUpdated, style: .relative) ago")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -343,7 +391,7 @@ struct SessionStatsRow: View {
     }
 }
 
-#Preview {
+#Preview("3 gauges") {
     GlassContainer {
         UsageView(
             utilization: Utilization(
@@ -354,6 +402,26 @@ struct SessionStatsRow: View {
                 extra_usage: nil
             ),
             session: SessionStats(inputTokens: 146, outputTokens: 12756, cacheRead: 3215270, cacheWrite: 168329, apiCalls: 76, sessionCount: 2),
+            lastUpdated: Date()
+        )
+    }
+    .frame(width: 300)
+    .padding()
+    .background(.black.opacity(0.4))
+    .preferredColorScheme(.dark)
+}
+
+#Preview("2 gauges") {
+    GlassContainer {
+        UsageView(
+            utilization: Utilization(
+                five_hour: RateLimit(utilization: 15, resets_at: nil),
+                seven_day: RateLimit(utilization: 22, resets_at: nil),
+                seven_day_opus: nil,
+                seven_day_sonnet: nil,
+                extra_usage: nil
+            ),
+            session: SessionStats(inputTokens: 146, outputTokens: 283000, cacheRead: 88000000, cacheWrite: 168329, apiCalls: 1007, sessionCount: 3),
             lastUpdated: Date()
         )
     }

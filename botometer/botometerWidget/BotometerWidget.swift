@@ -66,7 +66,42 @@ struct BotometerWidget: Widget {
                 }
         }
         .configurationDisplayName("bot-o-meter")
-        .description("Claude CLI usage limits and token stats.")
+        .description("Claude CLI usage limits and reset countdowns.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
+        .contentMarginsDisabled()
     }
+}
+
+// MARK: - Previews
+
+private let _previewUtil = Utilization(
+    five_hour:      RateLimit(utilization: 42, resets_at: ISO8601DateFormatter().string(from: Date().addingTimeInterval(2.5 * 3600))),
+    seven_day:      RateLimit(utilization: 67, resets_at: ISO8601DateFormatter().string(from: Date().addingTimeInterval(4 * 86400))),
+    seven_day_opus: RateLimit(utilization: 30, resets_at: ISO8601DateFormatter().string(from: Date().addingTimeInterval(4 * 86400))),
+    seven_day_sonnet: nil,
+    extra_usage: nil
+)
+private let _previewSession = SessionStats(
+    inputTokens: 146, outputTokens: 12756,
+    cacheRead: 3215270, cacheWrite: 168329,
+    apiCalls: 76, sessionCount: 2
+)
+private let _previewEntry = UsageEntry(date: .now, state: .loaded(utilization: _previewUtil, session: _previewSession))
+
+#Preview("Small", as: .systemSmall) {
+    BotometerWidget()
+} timeline: {
+    _previewEntry
+}
+
+#Preview("Medium", as: .systemMedium) {
+    BotometerWidget()
+} timeline: {
+    _previewEntry
+}
+
+#Preview("Large", as: .systemLarge) {
+    BotometerWidget()
+} timeline: {
+    _previewEntry
 }

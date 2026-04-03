@@ -70,6 +70,49 @@ struct GaugeDial: View {
     }
 }
 
+// MARK: - Reset Times
+
+/// Shows a compact countdown row for each active limit's reset time.
+struct ResetTimesView: View {
+    let util: Utilization
+    var compact: Bool = false
+
+    var body: some View {
+        let rows = resetRows
+        if rows.isEmpty {
+            Text("Reset times unavailable")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            VStack(spacing: compact ? 4 : 6) {
+                ForEach(rows, id: \.label) { row in
+                    HStack {
+                        Text(row.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(row.date, style: .timer)
+                            .font(.system(.caption2, design: .monospaced))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(row.color)
+                    }
+                }
+            }
+        }
+    }
+
+    private struct ResetRow { let label: String; let date: Date; let color: Color }
+
+    private var resetRows: [ResetRow] {
+        var rows: [ResetRow] = []
+        if let h = util.five_hour,  let d = h.resetsAtDate  { rows.append(.init(label: "5-Hour resets",  date: d, color: dialOrange)) }
+        if let w = util.seven_day,  let d = w.resetsAtDate  { rows.append(.init(label: "Weekly resets",  date: d, color: dialRed))    }
+        if let o = util.seven_day_opus, let d = o.resetsAtDate { rows.append(.init(label: "Opus resets", date: d, color: dialPurple)) }
+        return rows
+    }
+}
+
 // MARK: - Bit Character
 
 struct BitCharacter: View {
@@ -150,7 +193,8 @@ struct GlassUsageWidgetView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(.top, 18)
+        .padding([.horizontal, .bottom], 12)
     }
 
     func widgetStatus(icon: String, color: Color, text: String) -> some View {
@@ -273,25 +317,7 @@ struct MediumView: View {
 
             Divider().opacity(0.3)
 
-            // Compact stats row
-            HStack(spacing: 0) {
-                statLine(value: fmt(session.outputTokens), label: "output")
-                Spacer()
-                statLine(value: fmt(session.cacheRead), label: "cache")
-                Spacer()
-                statLine(value: "\(session.apiCalls)", label: "calls")
-            }
-        }
-    }
-
-    func statLine(value: String, label: String) -> some View {
-        VStack(spacing: 1) {
-            Text(value)
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.semibold)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            ResetTimesView(util: util, compact: true)
         }
     }
 }
@@ -343,44 +369,7 @@ struct LargeView: View {
 
             Divider().opacity(0.3)
 
-            // Triangle stats layout — label at bottom
-            VStack(spacing: 2) {
-                Text(fmt(session.outputTokens))
-                    .font(.system(.title3, design: .monospaced))
-                    .fontWeight(.bold)
-                Text("output tokens")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .frame(maxWidth: .infinity)
-
-            HStack(spacing: 0) {
-                VStack(spacing: 2) {
-                    Text(fmt(session.cacheRead))
-                        .font(.system(.headline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("cache read")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-
-                VStack(spacing: 2) {
-                    Text("\(session.apiCalls)")
-                        .font(.system(.headline, design: .monospaced))
-                        .fontWeight(.semibold)
-                    Text("API calls")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-
-            Label("LOCAL SESSIONS · \(session.sessionCount)", systemImage: "internaldrive")
-                .font(.caption2)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+            ResetTimesView(util: util)
 
             Spacer()
 
