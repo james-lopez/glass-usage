@@ -1,5 +1,37 @@
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode build output
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Xcode user state (per-developer, not shared)
 *.xcuserstate
 xcuserdata/
-DerivedData/
 *.xcworkspace/xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Xcode automatic resolution (commit Package.resolved for apps, not for libraries)
+.build/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+
+# Python (for generate_icon.py)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
