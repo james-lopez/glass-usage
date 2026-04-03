@@ -20,16 +20,32 @@ Refreshes every 15 minutes. Shows graceful error states for offline, logged-out,
 
 ---
 
-## Requirements
+## Install
+
+### Homebrew (recommended)
+
+```bash
+brew install --cask james-lopez/tap/botometer
+```
+
+The app will appear in `/Applications`. Launch it once and it installs itself in the menu bar.
+
+After first launch, add the widget:
+
+1. Right-click desktop → **Edit Widgets**
+2. Search **Bot-o-Meter**
+3. Drag Small or Medium to your desktop
+
+---
+
+## Build from source
+
+### Requirements
 
 - macOS 14 (Sonoma) or later  
 - Xcode 16 or later  
 - [xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)  
 - [Claude CLI](https://claude.ai/download) installed and logged in
-
----
-
-## Build & Run
 
 ```bash
 cd botometer
@@ -108,6 +124,15 @@ macOS Keychain
 | `Shared/WidgetViews.swift` | `GaugeDial`, `BitCharacter`, all widget views |
 | `botometer/ContentView.swift` | Menu bar popup UI |
 | `botometerWidget/BotometerWidget.swift` | WidgetKit timeline provider |
+
+---
+
+## What's next
+
+- [ ] Screenshots in this README
+- [ ] `release.sh` script to automate archive → notarize → GitHub release → tap update
+- [ ] UI polish based on daily use
+- [ ] Auto-launch at login option
 
 ---
 
